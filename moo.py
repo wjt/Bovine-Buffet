@@ -88,6 +88,11 @@ class MaybeTouchSelector(hildon.TouchSelector if have_hildon else gtk.TreeView):
 # And now, the application
 
 class PeopleWindow(MaybeStackableWindow):
+    __gsignals__ = {
+        "selection-changed":
+            (gobject.SIGNAL_RUN_FIRST, gobject.TYPE_NONE, ()),
+    }
+
     def __init__(self, store):
         super(PeopleWindow, self).__init__("People")
 
@@ -112,18 +117,20 @@ class PeopleWindow(MaybeStackableWindow):
             pannable.add_with_viewport(vbox)
             self.add(pannable)
 
+    def set_selection(self, iters):
+        pass
+
 class MainView(MaybeStackableWindow):
-    def __init__(self, store):
+    def __init__(self, store, pw):
         super(MainView, self).__init__("MooMenu")
 
         self.store = store
 
-        self.pw = PeopleWindow(store)
-
         select_people = gtk.Button(label="Select people")
-        select_people.connect('clicked', lambda button: self.pw.show_all())
+        select_people.connect('clicked', lambda button: pw.show_all())
 
-        menu = gtk.Label()
+        self.summary = gtk.Label()
+        self.summary.set_properties(wrap=True)
         menu.set_markup(
         """
 <b>Food:</b>
@@ -146,9 +153,8 @@ class MainView(MaybeStackableWindow):
         pannable.add_with_viewport(vbox)
         self.add(pannable)
 
-    def show_people_window(self):
-        pw = PeopleWindow()
-        pw.show_all()
+    def update_summary(self, people, vegetarians, drinks):
+        pass
 
 class PeopleStore(gtk.ListStore):
     COL_NAME = 0
@@ -167,7 +173,6 @@ standard_people = [
     ('Will', 'orange juice', True),
     ('Mateu', 'orange juice', False),
     ('Arun', 'orange juice', False),
-
     ('Marco', 'Coke', False),
     ('Rob', 'Coke', False),
     ('Cosimo', 'Coke', False),
@@ -180,7 +185,6 @@ standard_people = [
     ('Elliot', 'Coke', False),
     ('Daniel', 'Coke', True),
     ('Kyle', 'Coke', False),
-
     ('Megan', 'Diet Coke', True),
     ('Christian', 'sparkling water', False),
     ('Vivek', 'water', False),
@@ -193,7 +197,8 @@ class App(object):
         for person in standard_people:
             self.store.append(person)
 
-        self.mv = MainView(self.store)
+        self.pw = PeopleWindow(self.store)
+        self.mv = MainView(self.store, self.pw)
         self.mv.connect("delete_event", gtk.main_quit, None)
 
     def run(self):
