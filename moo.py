@@ -117,8 +117,7 @@ class PeopleWindow(MaybeStackableWindow):
             pannable.add_with_viewport(vbox)
             self.add(pannable)
 
-    def set_selection(self, iters):
-        pass
+
 
 class MainView(MaybeStackableWindow):
     def __init__(self, store, pw):
@@ -131,64 +130,81 @@ class MainView(MaybeStackableWindow):
 
         self.summary = gtk.Label()
         self.summary.set_properties(wrap=True)
-        menu.set_markup(
-        """
-<b>Food:</b>
-    7 people
-    2 vegetarians
 
-<b>Drinks:</b>
-    4× Coke
-    2× orange juice
-    1× water blah""")
-        menu.set_properties(wrap=True)
-
-        #menu.set_size_request(760 if have_hildon else 380, -1)
+        self.update_summary()
 
         vbox = gtk.VBox()
         vbox.pack_start(select_people, expand=False)
-        vbox.pack_start(menu)
+        vbox.pack_start(self.summary)
 
         pannable = MaybePannableArea()
         pannable.add_with_viewport(vbox)
         self.add(pannable)
 
-    def update_summary(self, people, vegetarians, drinks):
-        pass
+    def update_summary(self):
+        people = 0
+        vegetarians = 0
+        drinks = {}
+
+        for x in self.store:
+            if not x[PeopleStore.COL_PRESENT]:
+                continue
+
+            people += 1
+
+            if x[PeopleStore.COL_VEGETARIAN]:
+                vegetarians += 1
+
+            drink = x[PeopleStore.COL_DRINK]
+            drinks[drink] = drinks.get(drink, 0) + 1
+
+        food_summary = """
+<b>Food:</b>
+    %u people
+    %u vegetarians
+        """ % (people, vegetarians)
+
+        drink_summary = "<b>Drinks:</b>\n"
+
+        for drink, n in drinks.iteritems():
+            drink_summary += "    %u %s\n" % (n, drink)
+
+        self.summary.set_markup(food_summary + "\n" + drink_summary)
 
 class PeopleStore(gtk.ListStore):
     COL_NAME = 0
     COL_DRINK = 1
     COL_VEGETARIAN = 2
+    COL_PRESENT = 3
 
     def __init__(self):
-        super(PeopleStore, self).__init__(str, str, bool)
+        super(PeopleStore, self).__init__(str, str, bool, bool)
         self.set_sort_column_id(0, gtk.SORT_ASCENDING)
 
 standard_people = [
-    ('Simon', 'pomegranite juice', False),
-    ('Alban', 'orange juice', False),
-    ('Sjoerd', 'orange juice', False),
-    ('David', 'orange juice', False),
-    ('Will', 'orange juice', True),
-    ('Mateu', 'orange juice', False),
-    ('Arun', 'orange juice', False),
-    ('Marco', 'Coke', False),
-    ('Rob', 'Coke', False),
-    ('Cosimo', 'Coke', False),
-    ('Jonny', 'Coke', False),
-    ('Philip', 'Coke', False),
-    ('Philippe', 'Coke', False),
-    ('Martin', 'Coke', False),
-    ('Monty', 'Coke', False),
-    ('Gordon', 'Coke', False),
-    ('Elliot', 'Coke', False),
-    ('Daniel', 'Coke', True),
-    ('Kyle', 'Coke', False),
-    ('Megan', 'Diet Coke', True),
-    ('Christian', 'sparkling water', False),
-    ('Vivek', 'water', False),
-    ('Helen', 'water', False),
+    ('Simon', 'pomegranite juice', False, True),
+    ('Alban', 'orange juice', False, True),
+    ('Sjoerd', 'orange juice', False, True),
+    ('David', 'orange juice', False, True),
+    ('Will', 'orange juice', True, True),
+    ('Mateu', 'orange juice', False, False),
+    ('Arun', 'orange juice', False, False),
+    ('Marco', 'Coke', False, True),
+    ('Rob', 'Coke', False, True),
+    ('Cosimo', 'Coke', False, True),
+    ('Jonny', 'Coke', False, True),
+    ('Philip', 'Coke', False, True),
+    ('Philippe', 'Coke', False, False),
+    ('Martin', 'Coke', False, False),
+    ('Monty', 'Coke', False, False),
+    ('Gordon', 'Coke', False, False),
+    ('Elliot', 'Coke', False, False),
+    ('Daniel', 'Coke', True, True),
+    ('Kyle', 'Coke', False, False),
+    ('Megan', 'Diet Coke', True, False),
+    ('Christian', 'sparkling water', False, True),
+    ('Vivek', 'water', False, False),
+    ('Helen', 'water', False, False),
 ]
 
 class App(object):
