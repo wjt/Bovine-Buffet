@@ -220,14 +220,14 @@ class MainView(MaybeStackableWindow):
 <b>Food:</b>
     %u people
     %u vegetarians
-        """ % (people, vegetarians)
+""" % (people, vegetarians)
 
         drink_summary = "<b>Drinks:</b>\n"
 
         for drink, n in drinks.iteritems():
             drink_summary += "    %u %s\n" % (n, drink)
 
-        self.summary.set_markup(food_summary + "\n" + drink_summary)
+        self.summary.set_markup((food_summary + "\n" + drink_summary).strip())
 
 class PeopleStore(gtk.ListStore):
     COL_NAME = 0
