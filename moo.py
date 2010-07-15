@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 # encoding: utf-8
 #
-# FOSDEM 2010 schedule application for the Nokia N900.
-# Copyright © 2010, Will Thompson <will.thompson@collabora.co.uk>
+# Simple buffet provisioning application for the Nokia N900.
+# Copyright © 2010, Will Thompson <will@willthompson.co.uk>
+# Dedicated to the tolerant residents of barroombar@the cow, cambridge
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -77,8 +78,10 @@ class MaybeTouchSelector(hildon.TouchSelector if have_hildon else gtk.TreeView):
             # If I say text=False, add a text column, multi-select doesn't work.
             # Fucking Hildon. So I just tonk the first column's model and it
             # seems to do the job...
-            super(MaybeTouchSelector, self).__init__(text=True)
-            self.set_model(0, store)
+            super(MaybeTouchSelector, self).__init__(text=False)
+            cell = gtk.CellRendererText()
+            col = self.append_column(store, cell)
+            col.add_attribute(cell, 'markup', PeopleStore.COL_MARKUP)
             self.set_column_selection_mode(
                 hildon.TOUCH_SELECTOR_SELECTION_MODE_MULTIPLE)
         else:
@@ -91,7 +94,7 @@ class MaybeTouchSelector(hildon.TouchSelector if have_hildon else gtk.TreeView):
 
             cell = gtk.CellRendererText()
             name_col.pack_start(cell, True)
-            name_col.add_attribute(cell, 'markup', 0)
+            name_col.add_attribute(cell, 'markup', PeopleStore.COL_MARKUP)
 
             self.get_selection().connect('changed', self.selection_changed)
 
@@ -236,9 +239,10 @@ class PeopleStore(gtk.ListStore):
     COL_NAME = 0
     COL_DRINK = 1
     COL_VEGETARIAN = 2
+    COL_MARKUP = 3
 
     def __init__(self):
-        super(PeopleStore, self).__init__(str, str, bool)
+        super(PeopleStore, self).__init__(str, str, bool, str)
         self.set_sort_column_id(0, gtk.SORT_ASCENDING)
 
 regulars = [ 'Alban', 'Christian', 'Cosimo', 'Daniel', 'David', 'Elliot',
@@ -274,7 +278,11 @@ class App(object):
     def __init__(self):
         self.store = PeopleStore()
         for person in standard_people:
-            self.store.append(person)
+            markup = "%s\n<span size=\"small\" color=\"gray\">%s" % (person[0], person[1])
+            if person[2]:
+                markup += ", vegetarian"
+            markup += "</span>"
+            self.store.append(person + (markup,))
 
         self.mv = MainView(self.store)
         self.mv.connect("delete_event", gtk.main_quit, None)
