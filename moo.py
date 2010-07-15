@@ -241,9 +241,21 @@ class PeopleStore(gtk.ListStore):
     COL_VEGETARIAN = 2
     COL_MARKUP = 3
 
-    def __init__(self):
+    def __init__(self, people):
         super(PeopleStore, self).__init__(str, str, bool, str)
+
+        for person in people:
+            self.add_person(*person)
+
         self.set_sort_column_id(0, gtk.SORT_ASCENDING)
+
+    def add_person(self, name, drink, vegetarian):
+        vegetarian_markup = ", vegetarian" if vegetarian else ""
+        markup = """%s
+<span size=\"small\" color=\"gray\">%s%s</span>""" % (
+            esc(name), esc(drink), vegetarian_markup)
+
+        self.append((name, drink, vegetarian, markup))
 
 regulars = [ 'Alban', 'Christian', 'Cosimo', 'Daniel', 'David', 'Elliot',
              'Jonny', 'Marco', 'Philip', 'Rob', 'Simon', 'Sjoerd', 'Will',
@@ -276,13 +288,7 @@ standard_people = [
 
 class App(object):
     def __init__(self):
-        self.store = PeopleStore()
-        for person in standard_people:
-            markup = "%s\n<span size=\"small\" color=\"gray\">%s" % (person[0], person[1])
-            if person[2]:
-                markup += ", vegetarian"
-            markup += "</span>"
-            self.store.append(person + (markup,))
+        self.store = PeopleStore(standard_people)
 
         self.mv = MainView(self.store)
         self.mv.connect("delete_event", gtk.main_quit, None)
