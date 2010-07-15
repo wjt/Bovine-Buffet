@@ -139,7 +139,7 @@ class PeopleWindow(MaybeStackableWindow):
     }
 
     def __init__(self, store, initial_indices, update_selection_cb):
-        super(PeopleWindow, self).__init__("People")
+        super(PeopleWindow, self).__init__("Select people")
 
         # Would love to use a signal, but I can't because of
         # <https://bugs.maemo.org/show_bug.cgi?id=10935> :(
