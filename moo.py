@@ -39,6 +39,7 @@ def esc(x):
 
 try:
     import hildon
+    import portrait
     have_hildon = True
 except ImportError:
     have_hildon = False
@@ -64,7 +65,14 @@ class MaybePannableArea(hildon.PannableArea if have_hildon
             self.set_policy(gtk.POLICY_NEVER, gtk.POLICY_AUTOMATIC)
 
 class MaybeTouchSelector(hildon.TouchSelector if have_hildon else gtk.TreeView):
-    def __init__(self, store):
+    # This matches hildon.TouchSelector's changed signal.
+    if not have_hildon:
+        __gsignals__ = {
+            "changed":
+                (gobject.SIGNAL_RUN_FIRST, gobject.TYPE_NONE, (int,)),
+        }
+
+    def __init__(self, store, initial_indices):
         if have_hildon:
             # If I say text=False, add a text column, multi-select doesn't work.
             # Fucking Hildon. So I just tonk the first column's model and it
@@ -85,28 +93,70 @@ class MaybeTouchSelector(hildon.TouchSelector if have_hildon else gtk.TreeView):
             name_col.pack_start(cell, True)
             name_col.add_attribute(cell, 'markup', 0)
 
+            self.get_selection().connect('changed', self.selection_changed)
+
+        self.store = store
+        self._select(initial_indices)
+
+    def selection_changed(self, _):
+        assert not have_hildon
+        self.emit("changed", 0)
+
+    def _select(self, indices):
+        if have_hildon:
+            self.unselect_all(0)
+            for index in indices:
+                self.select_iter(0, self.store.get_iter((index,)), False)
+        else:
+            s = self.get_selection()
+            for index in indices:
+                s.select_path((index,))
+
+
+gobject.type_register(MaybeTouchSelector)
+
+class MagicButton(hildon.Button if have_hildon else gtk.Button):
+    def __init__(self, label, icon_name):
+        if have_hildon:
+            super(MagicButton, self).__init__(
+                gtk.HILDON_SIZE_AUTO_WIDTH | gtk.HILDON_SIZE_FINGER_HEIGHT,
+                hildon.BUTTON_ARRANGEMENT_HORIZONTAL,
+                title=label,
+                value=None)
+        else:
+            super(MagicButton, self).__init__(label=label)
+
+        image = gtk.Image()
+        image.set_from_icon_name(icon_name, gtk.ICON_SIZE_BUTTON)
+        self.set_image(image)
+
 # And now, the application
 
 class PeopleWindow(MaybeStackableWindow):
     __gsignals__ = {
         "selection-changed":
-            (gobject.SIGNAL_RUN_FIRST, gobject.TYPE_NONE, ()),
+            (gobject.SIGNAL_RUN_FIRST, gobject.TYPE_NONE, (object,)),
     }
 
-    def __init__(self, store):
+    def __init__(self, store, initial_indices, update_selection_cb):
         super(PeopleWindow, self).__init__("People")
+
+        # Would love to use a signal, but I can't because of
+        # <https://bugs.maemo.org/show_bug.cgi?id=10935> :(
+        self.update_selection_cb = update_selection_cb
 
         self.connect('delete-event', gtk.Widget.hide_on_delete)
 
-        new_person = gtk.Button(label="New person")
+        new_person = MagicButton(label="New person", icon_name='general_add')
         new_person.connect('clicked', lambda _: self.show_new_person_dialog())
         new_person.set_sensitive(False)
 
-        tv = MaybeTouchSelector(store)
+        selector = MaybeTouchSelector(store, initial_indices)
+        selector.connect('changed', self.selector_changed)
 
         vbox = gtk.VBox()
         vbox.pack_start(new_person, expand=False)
-        vbox.pack_start(tv)
+        vbox.pack_start(selector)
 
         if have_hildon:
             # TouchSelector has its own panning, and gets upset if you put it
@@ -117,21 +167,35 @@ class PeopleWindow(MaybeStackableWindow):
             pannable.add_with_viewport(vbox)
             self.add(pannable)
 
+    def selector_changed(self, selector, _):
+        if have_hildon:
+            paths = selector.get_selected_rows(0)
+        else:
+            _, paths = selector.get_selection().get_selected_rows()
 
+        indices = [index for (index, ) in paths]
+
+        self.update_selection_cb(indices)
 
 class MainView(MaybeStackableWindow):
-    def __init__(self, store, pw):
-        super(MainView, self).__init__("MooMenu")
+    def __init__(self, store):
+        super(MainView, self).__init__("Bovine Buffet")
+
+        initial_indices = []
+        for i in range(len(store)):
+            if store[i][PeopleStore.COL_NAME] in regulars:
+                initial_indices.append(i)
 
         self.store = store
+        self.pw = PeopleWindow(self.store, initial_indices, self.update_summary)
 
-        select_people = gtk.Button(label="Select people")
-        select_people.connect('clicked', lambda button: pw.show_all())
+        select_people = MagicButton(label="Select people",
+            icon_name='general_contacts_button')
+        select_people.connect('clicked', lambda button: self.pw.show_all())
 
         self.summary = gtk.Label()
         self.summary.set_properties(wrap=True)
-
-        self.update_summary()
+        self.update_summary(initial_indices)
 
         vbox = gtk.VBox()
         vbox.pack_start(select_people, expand=False)
@@ -141,16 +205,13 @@ class MainView(MaybeStackableWindow):
         pannable.add_with_viewport(vbox)
         self.add(pannable)
 
-    def update_summary(self):
-        people = 0
+    def update_summary(self, indices):
+        people = len(indices)
         vegetarians = 0
         drinks = {}
 
-        for x in self.store:
-            if not x[PeopleStore.COL_PRESENT]:
-                continue
-
-            people += 1
+        for i in indices:
+            x = self.store[i]
 
             if x[PeopleStore.COL_VEGETARIAN]:
                 vegetarians += 1
@@ -175,36 +236,38 @@ class PeopleStore(gtk.ListStore):
     COL_NAME = 0
     COL_DRINK = 1
     COL_VEGETARIAN = 2
-    COL_PRESENT = 3
 
     def __init__(self):
-        super(PeopleStore, self).__init__(str, str, bool, bool)
+        super(PeopleStore, self).__init__(str, str, bool)
         self.set_sort_column_id(0, gtk.SORT_ASCENDING)
 
+regulars = [ 'Alban', 'Christian', 'Cosimo', 'Daniel', 'David', 'Elliot',
+             'Jonny', 'Marco', 'Philip', 'Rob', 'Simon', 'Sjoerd', 'Will',
+           ]
 standard_people = [
-    ('Simon', 'pomegranite juice', False, True),
-    ('Alban', 'orange juice', False, True),
-    ('Sjoerd', 'orange juice', False, True),
-    ('David', 'orange juice', False, True),
-    ('Will', 'orange juice', True, True),
-    ('Mateu', 'orange juice', False, False),
-    ('Arun', 'orange juice', False, False),
-    ('Marco', 'Coke', False, True),
-    ('Rob', 'Coke', False, True),
-    ('Cosimo', 'Coke', False, True),
-    ('Jonny', 'Coke', False, True),
-    ('Philip', 'Coke', False, True),
-    ('Philippe', 'Coke', False, False),
-    ('Martin', 'Coke', False, False),
-    ('Monty', 'Coke', False, False),
-    ('Gordon', 'Coke', False, False),
-    ('Elliot', 'Coke', False, False),
-    ('Daniel', 'Coke', True, True),
-    ('Kyle', 'Coke', False, False),
-    ('Megan', 'Diet Coke', True, False),
-    ('Christian', 'sparkling water', False, True),
-    ('Vivek', 'water', False, False),
-    ('Helen', 'water', False, False),
+    ('Alban', 'orange juice', False),
+    ('Arun', 'orange juice', False),
+    ('Christian', 'sparkling water', False),
+    ('Cosimo', 'Coke', False),
+    ('Daniel', 'Coke', True),
+    ('David', 'orange juice', False),
+    ('Elliot', 'Coke', False),
+    ('Gordon', 'Coke', False),
+    ('Helen', 'water', False),
+    ('Jonny', 'Coke', False),
+    ('Kyle', 'Coke', False),
+    ('Marco', 'Coke', False),
+    ('Martin', 'Coke', False),
+    ('Mateu', 'orange juice', False),
+    ('Megan', 'Diet Coke', True),
+    ('Monty', 'Coke', False),
+    ('Philip', 'Coke', False),
+    ('Philippe', 'Coke', False),
+    ('Rob', 'Coke', False),
+    ('Simon', 'pomegranite juice', False),
+    ('Sjoerd', 'orange juice', False),
+    ('Vivek', 'water', False),
+    ('Will', 'orange juice', True),
 ]
 
 class App(object):
@@ -213,9 +276,11 @@ class App(object):
         for person in standard_people:
             self.store.append(person)
 
-        self.pw = PeopleWindow(self.store)
-        self.mv = MainView(self.store, self.pw)
+        self.mv = MainView(self.store)
         self.mv.connect("delete_event", gtk.main_quit, None)
+
+        if have_hildon:
+            portrait.FremantleRotation("bovine-buffet", self.mv, version='0.1')
 
     def run(self):
         self.mv.show_all()
