@@ -19,7 +19,10 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-import xml.dom.minidom as minidom
+import os
+import errno
+
+import cPickle
 
 import gtk
 import gobject
@@ -232,18 +235,21 @@ class PeopleStore(gtk.ListStore):
     COL_VEGETARIAN = 2
     COL_MARKUP = 3
 
-    def __init__(self, people):
+    def __init__(self):
         super(PeopleStore, self).__init__(str, str, bool, str)
+        self.current_attendees = []
 
-        for person in people:
-            self.add_person(*person)
+        if not self.load():
+            # Pre-seed with Collaborans
+            for person in sorted(standard_people):
+                self.add_person(*person)
+
+            for i in range(len(self)):
+                if self[i][PeopleStore.COL_NAME] in regulars:
+                    self.current_attendees.append(i)
+            self.save()
 
         self.set_sort_column_id(0, gtk.SORT_ASCENDING)
-
-        self.current_attendees = []
-        for i in range(len(self)):
-            if self[i][PeopleStore.COL_NAME] in regulars:
-                self.current_attendees.append(i)
 
     def add_person(self, name, drink, vegetarian):
         vegetarian_markup = ", vegetarian" if vegetarian else ""
@@ -255,6 +261,50 @@ class PeopleStore(gtk.ListStore):
 
     def get_current_attendees(self):
         return self.current_attendees
+
+    def _config_dir(self):
+        return os.environ['HOME'] + '/.config/bovine-buffet'
+
+    def _config_file(self):
+        return self._config_dir() + '/default'
+
+    def load(self):
+        try:
+            with open(self._config_file(), 'r') as f:
+                people = cPickle.load(f)
+
+                for i, person in zip(range(len(people)), sorted(people)):
+                    self.add_person(*person[0:3])
+                    if person[3]:
+                        self.current_attendees.append(i)
+
+            print "loaded %u people" % len(self)
+            return True
+        except IOError, e:
+            if e.errno == errno.ENOENT:
+                return False
+
+            raise
+        except TypeError, e:
+            print "database corrupted! :'("
+            return False
+
+    def save(self):
+        try:
+            os.makedirs(self._config_dir())
+        except OSError, e:
+            if e.errno != errno.EEXIST:
+                raise
+
+        with open(self._config_file(), 'w') as f:
+            data = []
+
+            for (row, i) in zip(self, range(len(self))):
+                data.append((row[PeopleStore.COL_NAME],
+                    row[PeopleStore.COL_DRINK], row[PeopleStore.COL_VEGETARIAN],
+                    i in self.current_attendees))
+
+            cPickle.dump(data, f)
 
 regulars = [ 'Alban', 'Christian', 'Cosimo', 'Daniel', 'David', 'Elliot',
              'Jonny', 'Marco', 'Philip', 'Rob', 'Simon', 'Sjoerd', 'Will',
@@ -287,7 +337,7 @@ standard_people = [
 
 class App(object):
     def __init__(self):
-        self.store = PeopleStore(standard_people)
+        self.store = PeopleStore()
 
         self.mv = MainView(self.store)
         self.mv.connect("delete_event", gtk.main_quit, None)
