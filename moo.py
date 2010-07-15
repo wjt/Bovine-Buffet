@@ -73,7 +73,7 @@ class MaybeTouchSelector(hildon.TouchSelector if have_hildon else gtk.TreeView):
                 (gobject.SIGNAL_RUN_FIRST, gobject.TYPE_NONE, (int,)),
         }
 
-    def __init__(self, store, initial_indices):
+    def __init__(self, store):
         if have_hildon:
             # If I say text=False, add a text column, multi-select doesn't work.
             # Fucking Hildon. So I just tonk the first column's model and it
@@ -99,7 +99,7 @@ class MaybeTouchSelector(hildon.TouchSelector if have_hildon else gtk.TreeView):
             self.get_selection().connect('changed', self.selection_changed)
 
         self.store = store
-        self._select(initial_indices)
+        self._select(store.get_current_attendees())
 
     def selection_changed(self, _):
         assert not have_hildon
@@ -136,12 +136,7 @@ class MagicButton(hildon.Button if have_hildon else gtk.Button):
 # And now, the application
 
 class PeopleWindow(MaybeStackableWindow):
-    __gsignals__ = {
-        "selection-changed":
-            (gobject.SIGNAL_RUN_FIRST, gobject.TYPE_NONE, (object,)),
-    }
-
-    def __init__(self, store, initial_indices, update_selection_cb):
+    def __init__(self, store, update_selection_cb):
         super(PeopleWindow, self).__init__("Select people")
 
         # Would love to use a signal, but I can't because of
@@ -154,12 +149,12 @@ class PeopleWindow(MaybeStackableWindow):
         new_person.connect('clicked', lambda _: self.show_new_person_dialog())
         new_person.set_sensitive(False)
 
-        selector = MaybeTouchSelector(store, initial_indices)
-        selector.connect('changed', self.selector_changed)
+        self.selector = MaybeTouchSelector(store)
+        self.selector.connect('changed', self.selector_changed)
 
         vbox = gtk.VBox()
         vbox.pack_start(new_person, expand=False)
-        vbox.pack_start(selector)
+        vbox.pack_start(self.selector)
 
         if have_hildon:
             # TouchSelector has its own panning, and gets upset if you put it
@@ -170,27 +165,23 @@ class PeopleWindow(MaybeStackableWindow):
             pannable.add_with_viewport(vbox)
             self.add(pannable)
 
-    def selector_changed(self, selector, _):
+    def get_selected_indices(self):
         if have_hildon:
-            paths = selector.get_selected_rows(0)
+            paths = self.selector.get_selected_rows(0)
         else:
-            _, paths = selector.get_selection().get_selected_rows()
+            _, paths = self.selector.get_selection().get_selected_rows()
 
-        indices = [index for (index, ) in paths]
+        return [index for (index, ) in paths]
 
-        self.update_selection_cb(indices)
+    def selector_changed(self, selector, _):
+        self.update_selection_cb(self.get_selected_indices())
 
 class MainView(MaybeStackableWindow):
     def __init__(self, store):
         super(MainView, self).__init__("Bovine Buffet")
 
-        initial_indices = []
-        for i in range(len(store)):
-            if store[i][PeopleStore.COL_NAME] in regulars:
-                initial_indices.append(i)
-
         self.store = store
-        self.pw = PeopleWindow(self.store, initial_indices, self.update_summary)
+        self.pw = PeopleWindow(self.store, self.update_summary)
 
         select_people = MagicButton(label="Select people",
             icon_name='general_contacts_button')
@@ -198,7 +189,7 @@ class MainView(MaybeStackableWindow):
 
         self.summary = gtk.Label()
         self.summary.set_properties(wrap=True)
-        self.update_summary(initial_indices)
+        self.update_summary(self.pw.get_selected_indices())
 
         vbox = gtk.VBox()
         vbox.pack_start(select_people, expand=False)
@@ -249,6 +240,11 @@ class PeopleStore(gtk.ListStore):
 
         self.set_sort_column_id(0, gtk.SORT_ASCENDING)
 
+        self.current_attendees = []
+        for i in range(len(self)):
+            if self[i][PeopleStore.COL_NAME] in regulars:
+                self.current_attendees.append(i)
+
     def add_person(self, name, drink, vegetarian):
         vegetarian_markup = ", vegetarian" if vegetarian else ""
         markup = """%s
@@ -256,6 +252,9 @@ class PeopleStore(gtk.ListStore):
             esc(name), esc(drink), vegetarian_markup)
 
         self.append((name, drink, vegetarian, markup))
+
+    def get_current_attendees(self):
+        return self.current_attendees
 
 regulars = [ 'Alban', 'Christian', 'Cosimo', 'Daniel', 'David', 'Elliot',
              'Jonny', 'Marco', 'Philip', 'Rob', 'Simon', 'Sjoerd', 'Will',
