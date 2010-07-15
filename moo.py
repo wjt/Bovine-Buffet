@@ -144,6 +144,7 @@ class PeopleWindow(MaybeStackableWindow):
     def __init__(self, store, update_selection_cb):
         super(PeopleWindow, self).__init__("Select people")
 
+        self.store = store
         # Would love to use a signal, but I can't because of
         # <https://bugs.maemo.org/show_bug.cgi?id=10935> :(
         self.update_selection_cb = update_selection_cb
@@ -179,7 +180,9 @@ class PeopleWindow(MaybeStackableWindow):
         return [index for (index, ) in paths]
 
     def selector_changed(self, selector, _):
-        self.update_selection_cb(self.get_selected_indices())
+        ixes = self.get_selected_indices()
+        self.store.set_current_attendees(ixes)
+        self.update_selection_cb(ixes)
 
 class MainView(MaybeStackableWindow):
     def __init__(self, store):
@@ -264,6 +267,10 @@ class PeopleStore(gtk.ListStore):
     def get_current_attendees(self):
         return self.current_attendees
 
+    def set_current_attendees(self, attendees):
+        self.current_attendees = attendees
+        self.save()
+
     def _config_dir(self):
         return os.environ['HOME'] + '/.config/bovine-buffet'
 
@@ -280,7 +287,6 @@ class PeopleStore(gtk.ListStore):
                     if person[3]:
                         self.current_attendees.append(i)
 
-            print "loaded %u people" % len(self)
             return True
         except IOError, e:
             if e.errno == errno.ENOENT:
