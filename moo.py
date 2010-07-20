@@ -138,6 +138,23 @@ class MagicButton(hildon.Button if have_hildon else gtk.Button):
         image.set_from_icon_name(icon_name, gtk.ICON_SIZE_BUTTON)
         self.set_image(image)
 
+class MagicEntry(hildon.Entry if have_hildon else gtk.Entry):
+    def __init__(self):
+        if have_hildon:
+            super(MagicEntry, self).__init__(gtk.HILDON_SIZE_AUTO)
+        else:
+            super(MagicEntry, self).__init__()
+
+class MagicCheckButton(hildon.CheckButton if have_hildon else gtk.CheckButton):
+    def __init__(self, label):
+        if have_hildon:
+            super(MagicCheckButton, self).__init__(
+                gtk.HILDON_SIZE_AUTO_WIDTH | gtk.HILDON_SIZE_FINGER_HEIGHT)
+        else:
+            super(MagicCheckButton, self).__init__()
+
+        self.set_label(label)
+
 # And now, the application
 
 class PeopleWindow(MaybeStackableWindow):
@@ -153,7 +170,6 @@ class PeopleWindow(MaybeStackableWindow):
 
         new_person = MagicButton(label="New person", icon_name='general_add')
         new_person.connect('clicked', lambda _: self.show_new_person_dialog())
-        new_person.set_sensitive(False)
 
         self.selector = MaybeTouchSelector(store)
         self.selector.connect('changed', self.selector_changed)
@@ -183,6 +199,35 @@ class PeopleWindow(MaybeStackableWindow):
         ixes = self.get_selected_indices()
         self.store.set_current_attendees(ixes)
         self.update_selection_cb(ixes)
+
+    def show_new_person_dialog(self):
+        dialog = gtk.Dialog(title="New person", parent=self,
+            buttons=(gtk.STOCK_SAVE, gtk.RESPONSE_APPLY))
+        table = gtk.Table(rows=3, columns=2)
+        table.set_col_spacing(0, 16)
+
+        name_entry = MagicEntry()
+        drink_entry = MagicEntry()
+        veg_tickybox = MagicCheckButton("Vegetarian")
+
+        table.attach(gtk.Label("Name"), 0, 1, 0, 1, xoptions=gtk.FILL)
+        table.attach(name_entry, 1, 2, 0, 1)
+
+        table.attach(gtk.Label("Drink lalal"), 0, 1, 1, 2, xoptions=gtk.FILL)
+        table.attach(drink_entry, 1, 2, 1, 2)
+
+        table.attach(veg_tickybox, 0, 2, 2, 3)
+
+        table.show_all()
+
+        dialog.vbox.pack_start(table)
+
+        if dialog.run() == gtk.RESPONSE_APPLY:
+            self.store.add_person(name_entry.get_text(), drink_entry.get_text(),
+                veg_tickybox.get_active())
+            self.store.save()
+
+        dialog.destroy()
 
 class MainView(MaybeStackableWindow):
     def __init__(self, store):
