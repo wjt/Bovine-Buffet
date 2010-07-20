@@ -206,14 +206,19 @@ class PeopleWindow(MaybeStackableWindow):
         table = gtk.Table(rows=3, columns=2)
         table.set_col_spacing(0, 16)
 
+        name_label = gtk.Label("Name")
+        name_label.set_alignment(0, 0.5)
+        drink_label = gtk.Label("Drink")
+        drink_label.set_alignment(0, 0.5)
+
         name_entry = MagicEntry()
         drink_entry = MagicEntry()
         veg_tickybox = MagicCheckButton("Vegetarian")
 
-        table.attach(gtk.Label("Name"), 0, 1, 0, 1, xoptions=gtk.FILL)
+        table.attach(name_label, 0, 1, 0, 1, xoptions=gtk.FILL)
         table.attach(name_entry, 1, 2, 0, 1)
 
-        table.attach(gtk.Label("Drink lalal"), 0, 1, 1, 2, xoptions=gtk.FILL)
+        table.attach(drink_label, 0, 1, 1, 2, xoptions=gtk.FILL)
         table.attach(drink_entry, 1, 2, 1, 2)
 
         table.attach(veg_tickybox, 0, 2, 2, 3)
