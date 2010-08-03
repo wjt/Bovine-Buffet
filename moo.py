@@ -268,7 +268,7 @@ class MainView(MaybeStackableWindow):
             if x[PeopleStore.COL_VEGETARIAN]:
                 vegetarians += 1
 
-            drink = x[PeopleStore.COL_DRINK]
+            drink = x[PeopleStore.COL_DRINK].lower()
             drinks[drink] = drinks.get(drink, 0) + 1
 
         food_summary = """
@@ -379,7 +379,7 @@ standard_people = [
     ('Helen', 'water', False),
     ('Jonny', 'Coke', False),
     ('Kyle', 'Coke', False),
-    ('Marco', 'Coke', False),
+    ('Marco', 'cOKe', False),
     ('Martin', 'Coke', False),
     ('Mateu', 'orange juice', False),
     ('Megan', 'Diet Coke', True),
@@ -388,7 +388,7 @@ standard_people = [
     ('Philippe', 'Coke', False),
     ('Rob', 'Coke', False),
     ('Simon', 'pomegranite juice', False),
-    ('Sjoerd', 'orange juice', False),
+    ('Sjoerd', 'oRANge juice', False),
     ('Vivek', 'water', False),
     ('Will', 'orange juice', True),
 ]
