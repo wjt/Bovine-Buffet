@@ -279,7 +279,8 @@ class MainView(MaybeStackableWindow):
 
         drink_summary = "<b>Drinks:</b>\n"
 
-        for drink, n in drinks.iteritems():
+        for drink, n in sorted(drinks.iteritems(), key=(lambda pair: pair[1]),
+                               reverse=True):
             drink_summary += "    %u %s\n" % (n, drink)
 
         self.summary.set_markup((food_summary + "\n" + drink_summary).strip())
